@@ -1,0 +1,11 @@
+psycopg2
+uvicorn
+fastapi
+pymupdf
+asyncpg
+python-multipart
+python-dotenv
+streamlit
+aiocache
+PyJWT
+aiohttp
