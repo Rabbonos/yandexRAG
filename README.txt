@@ -76,6 +76,19 @@ sudo docker run -d \
   -p 5432:5432 \
   pgvector/pgvector:16
 
+#заходим в докер
+docker exec -it <название/id докера> bash
+# надо перейти в cd /var/lib/postgresql/data
+cd /var/lib/postgresql/data
+
+#для ssl для базы данных
+#модифицируем файл postgresql.conf чтобы было :( 
+ssl = on
+ssl_cert_file = 'C:/path/to/your/cert.pem'
+ssl_key_file = 'C:/path/to/your/key.pem'
+) 
+nano postgresql.conf # и дальше меняем то что выше указано
+
 sudo apt-get update
 sudo apt-get install -y libpq-dev python3-dev build-essential
 pip install --upgrade pip
@@ -84,8 +97,19 @@ pip install psycopg2-binary
 pip install wheel
 pip install -r requirements.txt
 
-#наконец то запуск
-nohup streamlit run front_streamlit.py &
-nohup uvicorn backend_fastapi:app &
+#скачиваем nginx 
+...
 
+#заходим в конфиг Х и меняем на конфиг что указал
+...
+
+#наконец то запуск
+
+nohup streamlit run front_streamlit.py --server.port 8502 --server.address localhost & #только позволяя локально подключаться к порту 8052 и локальному ip адресу
+nohup uvicorn backend_fastapi:app --host localhost --port 8000 & #только позволяя локально подключаться к порту 8052 и локальному ip адресу
+
+#( ещё возможно: sudo ufw deny 8502 sudo ufw allow from <nginx_ip_address> to any port 8502, что то же самое должно быть  )
+
+#запуск nginx
+...
 
