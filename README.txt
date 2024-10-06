@@ -1,3 +1,5 @@
+#домен который создал rag4yandex.com. , обязательно нужен для certbot ( можно создать любой другой, 1 $ от яндекса)
+
 #заходим в coomand promt (в windows в поисковике находим)
 
 #для windows скачиваем от яндекса их cli
@@ -68,25 +70,43 @@ sudo apt-get install docker-ce docker-ce-cli containerd.io docker-buildx-plugin 
 sudo systemctl start docker
 sudo docker pull pgvector/pgvector:pg16
 
+# задаём доступ к файлас с сертификатом-ключом
+(https://stackoverflow.com/questions/12087683/postgresql-wont-start-server-key-has-group-or-world-access)
+#пример
+...
 #теперь запускаем базу данных (через докер) и даём пароль и тд ей, postgres- название базы данных, experiment - пароль ...
-sudo docker run -d \
-  --name pgvector-container \
-  -e POSTGRES_USER=postgres \
-  -e POSTGRES_PASSWORD=experiment \
-  -p 5432:5432 \
-  pgvector/pgvector:16
+docker run --user postgres ^
+   -d ^ 
+   --name pgvector-container-ssl ^
+   -e POSTGRES_USER=postgres ^
+   -e POSTGRES_PASSWORD=experiment ^
+   -p 5432:5432 ^
+   -v C:/nginx-1.26.2/ssl:/ssl ^
+   pgvector/pgvector:pg16 ^
+   -c ssl=on ^
+   -c ssl_cert_file=/ssl/selfsigned.crt ^
+   -c ssl_key_file=/ssl/selfsigned.key
 
+уже не надо, по желанию, инстуркция между - и - только полезна если хотите чтобы при перезапуске настройки сохранялись
+---------------------------
 #заходим в докер
 docker exec -it <название/id докера> bash
 # надо перейти в cd /var/lib/postgresql/data
 cd /var/lib/postgresql/data
-
+#далее
+apt-get update
+apt-get install nano
 #для ssl для базы данных
 #модифицируем файл postgresql.conf чтобы было :( 
 ssl = on
 ssl_cert_file = 'C:/path/to/your/cert.pem'
 ssl_key_file = 'C:/path/to/your/key.pem'
 ) 
+---------------------------------------
+
+!!!если меняете пути сертификата-ключа-... то в .env поменяйте SSLMODE SSLKEY SSLROOTCERT SSLCERT
+
+
 nano postgresql.conf # и дальше меняем то что выше указано
 
 sudo apt-get update
@@ -100,8 +120,8 @@ pip install -r requirements.txt
 #скачиваем nginx 
 ...
 
-#заходим в конфиг Х и меняем на конфиг что указал ( nginx.txt) 
-...
+#заходим в конфиг C:\nginx-1.26.2\conf (обычно на windows там) удаляем всё и вставляем всё из nginx.txt 
+(копирование ctrl+c , вставить shft+ctrl+правая кнопка мыши)
 
 #наконец то запуск
 
@@ -110,6 +130,9 @@ nohup uvicorn backend_fastapi:app --host localhost --port 8000 & #только �
 
 #( ещё возможно: sudo ufw deny 8502 sudo ufw allow from <nginx_ip_address> to any port 8502, что то же самое должно быть  )
 
+#certbot (https://certbot.eff.org/instructions?ws=nginx&os=snap )
+
 #запуск nginx
 ...
+
 
