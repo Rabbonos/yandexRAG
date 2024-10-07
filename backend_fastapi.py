@@ -9,6 +9,9 @@
 #good logging #логирование
 #caching #для ускорения работы
 #add alembic for database migrations #для удобства
+#elastic search #для поиска
+#kibana #для визуализации
+#и многое другое
 
 #импорты
 from fastapi import FastAPI, UploadFile, Form, HTTPException, Depends 
@@ -34,11 +37,34 @@ api_key = os.getenv('API_KEY')
 cloud_folder=os.getenv('CLOUD_FOLDER_ID')
 SECRET_KEY = os.getenv('SECRET_KEY') 
 ALGORITHM =  os.getenv('ALGORITHM') 
+SSLMODE= os.getenv('SSLMODE')   #'require'
+SSLKEY=  os.getenv('SSLKEY')  #'C:/nginx-1.26.2/ssl/selfsigned.key'
+SSLCERT=  os.getenv('SSLCERT')  #'C:/nginx-1.26.2/ssl/selfsigned.crt'
+SSLROOTCERT=   os.getenv('SSLROOTCERT') #None
+
+class DatabaseConfig:
+    def __init__(self, dbname, user, password, host, port, sslmode, sslrootcert, sslcert, sslkey):
+        if sslrootcert!='None':
+                 self.dsn = f"postgresql://{user}:{password}@{host}:{port}/{dbname}?sslmode={sslmode}&sslrootcert={sslrootcert}&sslcert={sslcert}&sslkey={sslkey}"
+        else:
+                 self.dsn = f"postgresql://{user}:{password}@{host}:{port}/{dbname}?sslmode={sslmode}&sslcert={sslcert}&sslkey={sslkey}"
+
+config = DatabaseConfig(
+    dbname="postgres",
+    user="postgres",
+    password="experiment",
+    host="localhost",
+    port="5432",
+    sslmode=SSLMODE,  # No verification needed
+    sslrootcert=SSLROOTCERT,   # Not needed
+    sslcert=SSLCERT,      
+    sslkey=SSLKEY        
+)
 
 #создание пула
 async def init_pool():
     return await asyncpg.create_pool(
-        dsn="postgresql://postgres:experiment@localhost/postgres"
+        dsn= config.dsn  #"postgresql://postgres:experiment@localhost/postgres"
     )
 
 #тут настройка запуска и закрытия приложения

@@ -4,6 +4,32 @@ import asyncpg
 from aiocache import Cache
 import streamlit as st
 from aiocache import cached
+import os
+from dotenv import load_dotenv
+load_dotenv()  # Load environment variables from .env
+SSLMODE= os.getenv('SSLMODE')   #'require'
+SSLKEY=  os.getenv('SSLKEY')  #'C:/nginx-1.26.2/ssl/selfsigned.key'
+SSLCERT=  os.getenv('SSLCERT')  #'C:/nginx-1.26.2/ssl/selfsigned.crt'
+SSLROOTCERT=   os.getenv('SSLROOTCERT') #None
+
+class DatabaseConfig:
+    def __init__(self, dbname, user, password, host, port, sslmode, sslrootcert, sslcert, sslkey):
+        if sslrootcert!='None':
+                 self.dsn = f"postgresql://{user}:{password}@{host}:{port}/{dbname}?sslmode={sslmode}&sslrootcert={sslrootcert}&sslcert={sslcert}&sslkey={sslkey}"
+        else:
+                 self.dsn = f"postgresql://{user}:{password}@{host}:{port}/{dbname}?sslmode={sslmode}&sslcert={sslcert}&sslkey={sslkey}"
+
+config = DatabaseConfig(
+    dbname="postgres",
+    user="postgres",
+    password="experiment",
+    host="localhost",
+    port="5432",
+    sslmode=SSLMODE,  # No verification needed
+    sslrootcert=SSLROOTCERT,   # Not needed
+    sslcert=SSLCERT,       # Not needed
+    sslkey=SSLKEY         # Not needed
+)
 
 cache = Cache.MEMORY 
 
@@ -16,7 +42,7 @@ async def get_pool():
 @cached(ttl=None, cache=cache)
 async def init_pool():
     return await asyncpg.create_pool(
-        dsn="postgresql://postgres:experiment@localhost/postgres"
+        dsn= config.dsn                           #"postgresql://postgres:experiment@localhost/postgres"
     )
 # добавление пользователя
 async def add_user(user_email, password):

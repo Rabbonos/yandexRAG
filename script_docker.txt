@@ -1,0 +1,25 @@
+#!/bin/bash
+
+# Path to the certificate and key
+CERT_PATH="/path/to/your/cert/selfsigned.crt"
+KEY_PATH="/path/to/your/key/selfsigned.key"
+
+# PostgreSQL container name
+CONTAINER_NAME="SSL_POSTGR"
+
+# Copy certificate and key to the container
+docker cp "$CERT_PATH" "$CONTAINER_NAME:/var/lib/postgresql/selfsigned.crt"
+docker cp "$KEY_PATH" "$CONTAINER_NAME:/var/lib/postgresql/selfsigned.key"
+
+# Set proper permissions inside the container
+docker exec -it "$CONTAINER_NAME" bash -c "chown postgres:postgres /var/lib/postgresql/selfsigned.key && chmod 600 /var/lib/postgresql/selfsigned.key"
+docker exec -it "$CONTAINER_NAME" bash -c "chown postgres:postgres /var/lib/postgresql/selfsigned.crt && chmod 644 /var/lib/postgresql/selfsigned.crt"
+
+# Update PostgreSQL config (in case it was reverted)
+docker exec -it "$CONTAINER_NAME" bash -c "sed -i 's|^#ssl = .*|ssl = '\''on'\''|' /var/lib/postgresql/data/postgresql.conf"
+docker exec -it "$CONTAINER_NAME" bash -c "sed -i 's|^#ssl_cert_file = .*|ssl_cert_file = '\''/var/lib/postgresql/selfsigned.crt'\''|' /var/lib/postgresql/data/postgresql.conf"
+docker exec -it "$CONTAINER_NAME" bash -c "sed -i 's|^#ssl_key_file = .*|ssl_key_file = '\''/var/lib/postgresql/selfsigned.key'\''|' /var/lib/postgresql/data/postgresql.conf"
+docker exec -it "$CONTAINER_NAME" bash -c "sed -i 's|^hostssl all all all|hostssl all all all scram-sha-256|' /var/lib/postgresql/data/pg_hba.conf"
+
+# Restart the PostgreSQL container to apply the new certificate
+docker restart "$CONTAINER_NAME"

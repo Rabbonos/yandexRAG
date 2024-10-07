@@ -1,5 +1,5 @@
 # docker + postqresql(pgvector) + dbeaver
-import psycopg2
+
 #from transformers import AutoTokenizer, AutoModel
 #import torch
 #import numpy as np
@@ -16,14 +16,42 @@ import psycopg2
 #     embeddings = outputs.last_hidden_state.mean(dim=1).squeeze() #take the last hidden layer ( which is not output layer, not linear ) and take the mean of all the token embeddings
 #     return embeddings.numpy().tolist()
 
+import psycopg2
+import os #for environment variables
+from dotenv import load_dotenv
+load_dotenv()  # Load environment variables from .env
+
+SSLMODE= os.getenv('SSLMODE')   #'require'
+SSLKEY=  os.getenv('SSLKEY')  #'C:/nginx-1.26.2/ssl/selfsigned.key'
+SSLCERT=  os.getenv('SSLCERT')  #'C:/nginx-1.26.2/ssl/selfsigned.crt'
+SSLROOTCERT=   os.getenv('SSLROOTCERT') #None
+
+# Base connection parameters
+connection_params = {
+    'dbname': 'postgres',
+    'user': 'postgres',
+    'password': 'experiment',
+    'host': 'localhost',
+    'port': '5432',
+    'sslmode': SSLMODE,
+}
+
+# Conditionally add SSL parameters if they are available
+if SSLROOTCERT:
+    connection_params.update({
+        'sslrootcert': SSLROOTCERT,
+        'sslcert': SSLCERT,
+        'sslkey': SSLKEY
+    })
+else:
+    connection_params.update({
+        'sslcert': SSLCERT,
+        'sslkey': SSLKEY
+    })
+
 # Connect to PostgreSQL
-conn = psycopg2.connect(
-    dbname="postgres",
-    user="postgres",
-    password="experiment",
-    host="localhost",
-    port="5432"
-)
+conn = psycopg2.connect(**connection_params)
+
 cur = conn.cursor()
 
 cur.execute("CREATE EXTENSION IF NOT EXISTS vector") #one-time initialization of the extension
