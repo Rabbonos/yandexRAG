@@ -60,6 +60,7 @@ cur.execute("CREATE EXTENSION IF NOT EXISTS vector") #one-time initialization of
 #Create table for user data
 cur.execute('''CREATE TABLE IF NOT EXISTS yandex_rag_user (
     id SERIAL PRIMARY KEY,
+    token TEXT DEFAULT NULL,          -- token
     user_email TEXT DEFAULT NULL,          -- App user ID
     token_registration_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP, -- token creation date (need if token is temporary)
     password_hash TEXT DEFAULT NULL,          -- password hash

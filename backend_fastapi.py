@@ -120,25 +120,27 @@ async def decode_jwt(token):
         return {"error": "Неверный токен"}
     
 async def get_current_user(input:TokenData):
-   
+  
    payload = await decode_jwt(input.token)
-   
+ 
    if "error" in payload:
         raise HTTPException(status_code=403, detail=payload["error"])
-   return input
+   payload.update({'token':input.token})
+   return payload
 
 #генерация токена
 @app.post("/create_token")
-async def generate_token(input: str = Depends(get_current_user)):
+async def generate_token(input: dict = Depends(get_current_user)):
     try:
-        user_email = input.user_email
-        existing_token = await get_existing_token( app , input.user_email)
+
+        user_email = input['user_email'] 
+        existing_token = await get_existing_token( app , user_email)
         
         if existing_token:
             await blacklist_token(app ,existing_token)
 
         expiration = timedelta(days=30)  # One month expiration
-        token_data = {"user_email": input.user_email, "exp":  datetime.now(timezone.utc) + expiration}
+        token_data = {"user_email": user_email, "exp":  datetime.now(timezone.utc) + expiration}
         access_token = jwt.encode(token_data, SECRET_KEY, algorithm=ALGORITHM)
         await add_token(app, access_token, user_email)
         return {'status': 200, "access_token": access_token, "token_type": "bearer"}
@@ -148,10 +150,15 @@ async def generate_token(input: str = Depends(get_current_user)):
         raise HTTPException(status_code=500, detail="Internal Server Error")
     
 @app.post('/data_accept')
-async def text_acceptor(input: TextAcceptor, user_email: str = Depends(get_current_user)):
+async def text_acceptor(input: TextAcceptor, credentials: dict = Depends(get_current_user)):
 
     try:
-            user_email = user_email.user_email 
+            print('daaa1')
+            print(credentials)
+            user_email = credentials['user_email'] 
+            token=credentials['token']
+            print(user_email, token)
+            print('daaa')
             model=YandexGPT(input.yandex_model, api_key, cloud_folder, input.custom_model, input.custom_model_id)
             
             if (input.text and input.file) or (not input.text and not input.file):
@@ -179,9 +186,9 @@ async def text_acceptor(input: TextAcceptor, user_email: str = Depends(get_curre
                     
                     try:
                         await conn.execute("""
-                            INSERT INTO yandex_rag_user (user_email, vector_embeddings, text)
-                            VALUES ($1, $2, $3)
-                        """, user_email, embeddings, chunk)
+                            INSERT INTO yandex_rag_user (user_email, vector_embeddings, text, token)
+                            VALUES ($1, $2, $3, $4)
+                        """, user_email, embeddings, chunk, token)
                     except Exception as e:
                         return {"error": f"Error inserting data into the database: {str(e)}"}
                     
@@ -192,11 +199,12 @@ async def text_acceptor(input: TextAcceptor, user_email: str = Depends(get_curre
         raise HTTPException(status_code=500, detail="Internal Server Error")
 
 @app.post('/rag_answer', dependencies=[Depends(get_current_user)])
-async def rag_answer( input: TextAcceptor, user_email: str = Depends(get_current_user)):
+async def rag_answer( input: TextAcceptor, credentials: str = Depends(get_current_user)):
     try:
-            
-            user_email = user_email.user_email
-            
+           
+            user_email = credentials['user_email'] 
+            token=credentials['token']
+            print('eeeeeee')
             model=YandexGPT(input.yandex_model, api_key, cloud_folder, input.custom_model, input.custom_model_id)
             
             if (input.text and input.file) or (not input.text and not input.file):
@@ -217,7 +225,8 @@ async def rag_answer( input: TextAcceptor, user_email: str = Depends(get_current
             except Exception as e:
                  return {"error": f"Error getting embeddings: {str(e)}"}
             try:
-                response = await get_closest_text(app ,embeddings, user_email)
+                print('aaaaaaaa')
+                response = await get_closest_text(app ,embeddings, user_email, token)
                 print(response,'response')
                 combined_text = ' '.join([result['text']+' ;' for result in response])  
             except Exception as e:

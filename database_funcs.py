@@ -36,16 +36,16 @@ async def cleanup_expired_tokens(app: FastAPI):
         )
 
 #получаем самый близкий текст
-async def get_closest_text(app: FastAPI ,embeddings, user_email):
+async def get_closest_text(app: FastAPI ,embeddings, user_email:str, token:str)->list:
         async with app.state.pool.acquire() as conn:
-        
+          
             results = await conn.fetch("""
                 SELECT id, text, user_email, 1 - (vector_embeddings <=> $1::vector) AS cosine_similarity
                 FROM yandex_rag_user
-                WHERE user_email = $2 AND vector_embeddings IS NOT NULL
+                WHERE user_email = $2 AND token =$3 AND vector_embeddings IS NOT NULL
                 ORDER BY cosine_similarity DESC
                 LIMIT 5
-            """, embeddings, user_email)
+            """, embeddings, user_email, token,)
                     
             response = []
             for result in results:
