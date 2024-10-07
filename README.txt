@@ -1,5 +1,9 @@
-#домен который создал rag4yandex.com. , обязательно нужен для certbot ( можно создать любой другой, 1 $ от яндекса)
+#домен который создал: rag4yandex.com. , обязательно нужен для certbot ( можно создать любой другой, 1 $ от яндекса)
+# домен который создал 2: yandexragus.duckdns.org
+!!!если меняете пути сертификата-ключа-... то в .env поменяйте SSLMODE SSLKEY SSLROOTCERT SSLCERT + учтите что в докере тоже придется указать
 
+
+НАЧАЛО 
 #заходим в coomand promt (в windows в поисковике находим)
 
 #для windows скачиваем от яндекса их cli
@@ -11,14 +15,13 @@
 yc init
 
 #опять следуем инстуркции , переходим по ссылке, копируем токен который увидили и вставляем :
-...
+... (не выходим отсюда и идем дальше по инструкции)
 
 
-# далее вставляем по инструкции яндекса следующее:
-yc compute ssh --name compute-vm-2-2-20-hdd-1728077926308 --folder-id b1gl42i8kf54i590ma16
+# далее заходим в яндекс VM , запускаем нужный нам VM (достаточно просто), в итоге там должны увидеть что то похожее на 'yc compute ssh --name compute-vm-2-2-20-hdd-1728077926308 --folder-id b1gl42i8kf54i590ma16' , копируете и вставляете в cmd 
 
 #должны были подклюиться к серверу 
-теперь вы в линуксе 
+теперь вы в линуксе (вашем VM)
 
 #создаём файл
 nano backend_fastapi.py
@@ -34,7 +37,7 @@ ctrl+x и enter
 
 #повторяем для всех файлов кроме png (наверное можно было бы через filezilla адекватно закинуть файлы , но тогда надо по ssh подключиться, почему то не выходило нормально)
 
-#у нас есть ешё фотка , её скачиваем по ссылке которую создал
+#у нас есть ещё фотка , её скачиваем по ссылке которую создал ( можно скачать любую фотку естественно)
 wget https://i.ibb.co/JdXMC8J/ragyandeximg.png -O ragyandeximg.png
 
 #далее просто вставляйте по очереди команды
@@ -70,44 +73,34 @@ sudo apt-get install docker-ce docker-ce-cli containerd.io docker-buildx-plugin 
 sudo systemctl start docker
 sudo docker pull pgvector/pgvector:pg16
 
-# задаём доступ к файлас с сертификатом-ключом
-(https://stackoverflow.com/questions/12087683/postgresql-wont-start-server-key-has-group-or-world-access)
-#пример
-...
-#теперь запускаем базу данных (через докер) и даём пароль и тд ей, postgres- название базы данных, experiment - пароль ...
-docker run --user postgres ^
-   -d ^ 
-   --name pgvector-container-ssl ^
-   -e POSTGRES_USER=postgres ^
-   -e POSTGRES_PASSWORD=experiment ^
-   -p 5432:5432 ^
-   -v C:/nginx-1.26.2/ssl:/ssl ^
-   pgvector/pgvector:pg16 ^
-   -c ssl=on ^
-   -c ssl_cert_file=/ssl/selfsigned.crt ^
-   -c ssl_key_file=/ssl/selfsigned.key
+#теперь запускаем базу данных (через докер) и даём пароль и тд ей, подключаем ssl, ... 
+DOCKER 
+-----------------------------------------------------------------
+docker run -d --name SSL_POSTGR^
+  -p 5432:5432 ^
+  -e POSTGRES_PASSWORD=experiment^
+  pgvector/pgvector:pg16
 
-уже не надо, по желанию, инстуркция между - и - только полезна если хотите чтобы при перезапуске настройки сохранялись
----------------------------
-#заходим в докер
-docker exec -it <название/id докера> bash
-# надо перейти в cd /var/lib/postgresql/data
-cd /var/lib/postgresql/data
-#далее
-apt-get update
-apt-get install nano
-#для ssl для базы данных
-#модифицируем файл postgresql.conf чтобы было :( 
-ssl = on
-ssl_cert_file = 'C:/path/to/your/cert.pem'
-ssl_key_file = 'C:/path/to/your/key.pem'
-) 
----------------------------------------
+#тут надо скопировать наш ключ и сертфикат в докер
+docker cp C:/nginx-1.26.2/ssl/selfsigned.key SSL_POSTGR:/var/lib/postgresql/
+docker cp C:/nginx-1.26.2/ssl/selfsigned.crt SSL_POSTGR:/var/lib/postgresql/
 
-!!!если меняете пути сертификата-ключа-... то в .env поменяйте SSLMODE SSLKEY SSLROOTCERT SSLCERT
+docker exec -it SSL_POSTGR bash -c "chown postgres:postgres /var/lib/postgresql/selfsigned.key && chmod 600 /var/lib/postgresql/selfsigned.key"
+
+docker exec -it SSL_POSTGR bash -c "chown postgres:postgres /var/lib/postgresql/selfsigned.crt && chmod 644 /var/lib/postgresql/selfsigned.crt"
 
 
-nano postgresql.conf # и дальше меняем то что выше указано
+docker exec -it SSL_POSTGR bash -c "sed -i 's|^#ssl = .*|ssl = '\''on'\''|' /var/lib/postgresql/data/postgresql.conf"
+
+
+docker exec -it SSL_POSTGR bash -c "sed -i 's|^#ssl_cert_file = .*|ssl_cert_file = '\''/var/lib/postgresql/selfsigned.crt'\''|' /var/lib/postgresql/data/postgresql.conf"
+
+docker exec -it SSL_POSTGR bash -c "sed -i 's|^#ssl_key_file = .*|ssl_key_file = '\''/var/lib/postgresql/selfsigned.key'\''|' /var/lib/postgresql/data/postgresql.conf"
+
+docker exec -it SSL_POSTGR bash -c "sed -i 's|^hostssl all all all|hostssl all all all scram-sha-256|' /var/lib/postgresql/data/pg_hba.conf"
+
+docker restart SSL_POSTGR
+----------------------------------------------------------------
 
 sudo apt-get update
 sudo apt-get install -y libpq-dev python3-dev build-essential
@@ -117,22 +110,25 @@ pip install psycopg2-binary
 pip install wheel
 pip install -r requirements.txt
 
+#наконец то запуск
+
+nohup streamlit run front_streamlit.py --server.port 8502 --server.address localhost & #только позволяя локально подключаться к порту 8052 и локальному ip адресу
+nohup uvicorn backend_fastapi:app --host localhost --port 8000 & #только позволяя локально подключаться к порту 8052 и локальному ip адресу
+
+#( ещё возможно: sudo ufw deny 8052 sudo ufw allow from <nginx_ip_address> to any port 8502, что то же самое должно быть  )
+
+#certbot (https://certbot.eff.org/instructions?ws=nginx&os=snap)/ acme.sh , пока что нет 
+
 #скачиваем nginx 
 ...
 
 #заходим в конфиг C:\nginx-1.26.2\conf (обычно на windows там) удаляем всё и вставляем всё из nginx.txt 
 (копирование ctrl+c , вставить shft+ctrl+правая кнопка мыши)
 
-#наконец то запуск
-
-nohup streamlit run front_streamlit.py --server.port 8502 --server.address localhost & #только позволяя локально подключаться к порту 8052 и локальному ip адресу
-nohup uvicorn backend_fastapi:app --host localhost --port 8000 & #только позволяя локально подключаться к порту 8052 и локальному ip адресу
-
-#( ещё возможно: sudo ufw deny 8502 sudo ufw allow from <nginx_ip_address> to any port 8502, что то же самое должно быть  )
-
-#certbot (https://certbot.eff.org/instructions?ws=nginx&os=snap )
+#тест nginx
+nginx -t
 
 #запуск nginx
-...
+nohup nginx -s reload &
 
 
