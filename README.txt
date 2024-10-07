@@ -35,7 +35,7 @@ ctl + shift + правая кнопка мышьки ( чтобы вставит
 #выходим
 ctrl+x и enter
 
-#повторяем для всех файлов кроме png (наверное можно было бы через filezilla адекватно закинуть файлы , но тогда надо по ssh подключиться, почему то не выходило нормально)
+#повторяем для всех файлов кроме ( а в .env путь SSLKEY =/etc/nginx/ssl/key.pem   SSLCERT=/etc/nginx/ssl/cert.pem  ) (так же в requirements удалить psycopg2, скачаете несколько по другому )и png (наверное можно было бы через filezilla адекватно закинуть файлы , но тогда надо по ssh подключиться, почему то не выходило нормально)
 
 #у нас есть ещё фотка , её скачиваем по ссылке которую создал ( можно скачать любую фотку естественно)
 wget https://i.ibb.co/JdXMC8J/ragyandeximg.png -O ragyandeximg.png
@@ -53,54 +53,119 @@ python3.10 -m venv myenv - создаем свой энвайронмент
 source myenv/bin/activate - активируем
 sudo apt install -y python3.10-distutils 
 wget https://bootstrap.pypa.io/get-pip.py
-pip install -r requirements.txt   
+  
 
 # для докера, опять просто вставляем по очереди
-sudo apt install -y apt-transport-https ca-certificates curl software-properties-common
+sudo apt-get update
+sudo apt-get install ca-certificates curl
 sudo install -m 0755 -d /etc/apt/keyrings
 sudo curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
+sudo chmod a+r /etc/apt/keyrings/docker.asc
 
 #это одна команда большая
-sudo chmod a+r /etc/apt/keyrings/docker.asc
+----
 echo \
   "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu \
   $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | \
   sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+----
 
 sudo apt-get update
 sudo apt-get install docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
 
+
 sudo systemctl start docker
 sudo docker pull pgvector/pgvector:pg16
 
+#запускаем пока не до конца рабочий фронт
+nohup streamlit run front_streamlit.py --server.port 8502 --server.address localhost & #только позволяя локально подключаться к порту 8052 и локальному ip адресу
+
+#certbot (https://certbot.eff.org/instructions?ws=nginx&os=snap) / acme.sh (устанавливаю второе ибо certbot windows не поддерживает больше)
+#сертификат и ключ 
+
+
+
+
+
+
+#скачиваем nginx 
+sudo apt install nginx
+
+#заходим в конфиг 
+1 sudo nano /etc/nginx/nginx.conf (LINUX)  ( cd C:\nginx-1.26.2\conf (WINDOWS) ) 
+2 CTRL + Shift + ^ - чтобы включить режим \выбирать\ ,далее стрелкой вниз идем в конец файла и CTRL + K(удаляем всё)  
+3 копирование ctrl+c ( на своём компе) 
+4 вставить shft+ctrl+правая кнопка мыши (сервер) 
+
+#делаем папку с сертификатом - ключом 
+sudo mkdir ssl
+
+#надо 
+sudo apt install socat
+
+wget -O -  https://get.acme.sh | sh -s email=вашмейлтут
+
+source ~/.bashrc ( перезагрузка) 
+
+#надо
+acme.sh --set-default-ca --server letsencrypt
+
+#
+sudo ~/.acme.sh/acme.sh --issue --standalone -d yandexragus.duckdns.org
+
+
+
+# сигнал успеха
+Your cert is in: /root/.acme.sh/yandexragus.duckdns.org_ecc/yandexragus.duckdns.org.cer
+Your cert key is in: /root/.acme.sh/yandexragus.duckdns.org_ecc/yandexragus.duckdns.or
+
+#запуск nginx
+sudo systemctl start nginx
+
+#(скачивает сертификат +  автоматически перезапускает nginx когда надо + обновляет сертификат)
+acme.sh --install-cert -d yandexragus.duckdns.org \
+--key-file /etc/nginx/ssl/key.pem \
+--fullchain-file /etc/nginx/ssl/cert.pem \
+--reloadcmd "systemctl reload nginx"
+
+#тест nginx
+nginx -t
+
+#########################эту часть с docker можно пропустить, она нужна была только чтобы вручную всё делать, теперь надо просто запустить скрипт который в git указан#####################################
+#UPDATE делать всё автоматически слишком запарно... ( надо cron job скрипту сделать будет)
 #теперь запускаем базу данных (через докер) и даём пароль и тд ей, подключаем ssl, ... 
 DOCKER 
 -----------------------------------------------------------------
-docker run -d --name SSL_POSTGR^
-  -p 5432:5432 ^
-  -e POSTGRES_PASSWORD=experiment^
+sudo docker run -d --name SSL_POSTGR \
+  -p 5432:5432 \
+  -e POSTGRES_PASSWORD=experiment\
   pgvector/pgvector:pg16
 
 #тут надо скопировать наш ключ и сертфикат в докер
-docker cp C:/nginx-1.26.2/ssl/selfsigned.key SSL_POSTGR:/var/lib/postgresql/
-docker cp C:/nginx-1.26.2/ssl/selfsigned.crt SSL_POSTGR:/var/lib/postgresql/
+sudo docker cp /etc/nginx/ssl/key.pem SSL_POSTGR:/var/lib/postgresql/
+sudo docker cp /etc/nginx/ssl/cert.pem SSL_POSTGR:/var/lib/postgresql/
 
-docker exec -it SSL_POSTGR bash -c "chown postgres:postgres /var/lib/postgresql/selfsigned.key && chmod 600 /var/lib/postgresql/selfsigned.key"
+sudo docker exec -it SSL_POSTGR bash -c "chown postgres:postgres /var/lib/postgresql/key.pem && chmod 600 /var/lib/postgresql/key.pem"
 
-docker exec -it SSL_POSTGR bash -c "chown postgres:postgres /var/lib/postgresql/selfsigned.crt && chmod 644 /var/lib/postgresql/selfsigned.crt"
-
-
-docker exec -it SSL_POSTGR bash -c "sed -i 's|^#ssl = .*|ssl = '\''on'\''|' /var/lib/postgresql/data/postgresql.conf"
+sudo docker exec -it SSL_POSTGR bash -c "chown postgres:postgres /var/lib/postgresql/cert.pem && chmod 644 /var/lib/postgresql/cert.pem"
 
 
-docker exec -it SSL_POSTGR bash -c "sed -i 's|^#ssl_cert_file = .*|ssl_cert_file = '\''/var/lib/postgresql/selfsigned.crt'\''|' /var/lib/postgresql/data/postgresql.conf"
+sudo docker exec -it SSL_POSTGR bash -c "sed -i 's|^#ssl = .*|ssl = '\''on'\''|' /var/lib/postgresql/data/postgresql.conf"
 
-docker exec -it SSL_POSTGR bash -c "sed -i 's|^#ssl_key_file = .*|ssl_key_file = '\''/var/lib/postgresql/selfsigned.key'\''|' /var/lib/postgresql/data/postgresql.conf"
 
-docker exec -it SSL_POSTGR bash -c "sed -i 's|^hostssl all all all|hostssl all all all scram-sha-256|' /var/lib/postgresql/data/pg_hba.conf"
+sudo docker exec -it SSL_POSTGR bash -c "sed -i 's|^#ssl_cert_file = .*|ssl_cert_file = '\''/var/lib/postgresql/cert.pem'\''|' /var/lib/postgresql/data/postgresql.conf"
 
-docker restart SSL_POSTGR
+sudo docker exec -it SSL_POSTGR bash -c "sed -i 's|^#ssl_key_file = .*|ssl_key_file = '\''/var/lib/postgresql/key.pem'\''|' /var/lib/postgresql/data/postgresql.conf"
+
+sudo docker exec -it SSL_POSTGR bash -c "sed -i 's|^hostssl all all all|hostssl all all all scram-sha-256|' /var/lib/postgresql/data/pg_hba.conf"
+
+sudo docker restart SSL_POSTGR
 ----------------------------------------------------------------
+
+cd home/X ( Х папка начальная где вы были) например y4gpt
+
+
+source myenv/bin/activate - активируем (опять ибо возможно до этого выходили уже)
 
 sudo apt-get update
 sudo apt-get install -y libpq-dev python3-dev build-essential
@@ -110,25 +175,30 @@ pip install psycopg2-binary
 pip install wheel
 pip install -r requirements.txt
 
-#наконец то запуск
+sudo chmod 644 /etc/nginx/ssl/cert.pem
+sudo chmod 600 /etc/nginx/ssl/key.pem
 
-nohup streamlit run front_streamlit.py --server.port 8502 --server.address localhost & #только позволяя локально подключаться к порту 8052 и локальному ip адресу
+sudo su
+source /home/y4gpt/myenv/bin/activate
+
+
+#запускаем бэк
 nohup uvicorn backend_fastapi:app --host localhost --port 8000 & #только позволяя локально подключаться к порту 8052 и локальному ip адресу
+
+#создаём таблицы
+python -m database_setup.py
+
+#(если у вас несколько streamlit работает то закройте , если только 1 то всё, больше нет иснтуркций)
+
+ps 
+
+kill X
+
+#последний шаг если было несколько streamlit
+nohup streamlit run front_streamlit.py --server.port 8502 --server.address localhost &
 
 #( ещё возможно: sudo ufw deny 8052 sudo ufw allow from <nginx_ip_address> to any port 8502, что то же самое должно быть  )
 
-#certbot (https://certbot.eff.org/instructions?ws=nginx&os=snap)/ acme.sh , пока что нет 
 
-#скачиваем nginx 
-...
-
-#заходим в конфиг C:\nginx-1.26.2\conf (обычно на windows там) удаляем всё и вставляем всё из nginx.txt 
-(копирование ctrl+c , вставить shft+ctrl+правая кнопка мыши)
-
-#тест nginx
-nginx -t
-
-#запуск nginx
-nohup nginx -s reload &
 
 
